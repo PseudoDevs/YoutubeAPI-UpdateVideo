@@ -8,7 +8,7 @@ from googleapiclient.discovery import build
 from datetime import datetime, timezone
 
 client_secret_file = "client_secret.json"
-video_id = "oqJuhTJwxBA" // changing the video_id for checking
+video_id = "oqJuhTJwxBA" # changing the video_id for checking
 sleep_time = 600  # 10 minutes
 
 
