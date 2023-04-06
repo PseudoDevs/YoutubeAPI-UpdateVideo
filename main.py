@@ -1,86 +1,57 @@
-import os, pickle, json, time
+import os
+import pickle
+import json
+import time
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from datetime import datetime, timezone
 
 client_secret_file = "client_secret.json"
+video_id = "oqJuhTJwxBA" // changing the video_id for checking
+sleep_time = 600  # 10 minutes
 
-credentials = None
 
-def edit_title(views, credentials):
-    youtube = build("youtube", "v3", credentials=credentials)
+def get_credentials():
+    if os.path.exists("token.pickle"):
+        with open("token.pickle", "rb") as token:
+            credentials = pickle.load(token)
+    else:
+        flow = InstalledAppFlow.from_client_secrets_file(
+            client_secret_file, scopes=["https://www.googleapis.com/auth/youtube"]
+        )
+        credentials = flow.run_local_server(
+            port=8080, prompt="consent", authorization_prompt_message=""
+        )
+        with open("token.pickle", "wb") as f:
+            pickle.dump(credentials, f)
+    return credentials
 
-    video_response = youtube.videos().list(
-        id = "cufr0J9D3aI",
-        part = "snippet"
-    ).execute()
 
+def edit_title(views, youtube):
+    video_response = youtube.videos().list(id=video_id, part="snippet").execute()
     video_snippet = video_response["items"][0]["snippet"]
-
-    video_snippet['title'] = "view_count: " + str(views)
+    video_snippet["title"] = f"view_count: {views}"
 
     youtube.videos().update(
-        part    = "snippet",
-        body    = dict(
-            snippet = video_snippet,
-            id = "cufr0J9D3aI"
-        )
+        part="snippet",
+        body=dict(snippet=video_snippet, id=video_id)
     ).execute()
 
-    utc_dt = datetime.now(timezone.utc)
-    dt = str(utc_dt.astimezone())
-    date_time = dt.split('.')[0]
+    with open("execute_logs.txt", "a") as f:
+        f.write(f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}\n")
 
-    f = open("execute_logs.txt", "a")
-    f.write(date_time+"\n")
-    f.close()
+    time.sleep(sleep_time)
+    get_views()
 
-    time.sleep(600) # 10 mins
-    main_exec()
 
-def get_views(credentials):
-    youtube = build("youtube", "v3", credentials=credentials)
+def get_views():
+    youtube = build("youtube", "v3", credentials=get_credentials())
+    response = youtube.videos().list(part="statistics", id=video_id).execute()
+    views = response["items"][0]["statistics"]["viewCount"]
+    print(views)
+    edit_title(views, youtube)
 
-    request = youtube.videos().list(
-        part = "statistics",
-        id   = "cufr0J9D3aI"
-    )
-
-    response = request.execute()
-    fix_response = str(response).replace("'", '"')
-    parsed_response = json.loads(fix_response)
-
-    views = parsed_response["items"][0]["statistics"]["viewCount"]
-    print(views) # 23
-    edit_title(views, credentials)
-
-def main_exec():
-    if os.path.exists('token.pickle'):
-        print('true')
-    with open('token.pickle', 'rb') as token:
-        credentials = pickle.load(token)
-    get_views(credentials)
-
-    if not credentials or not credentials.valid:
-        if credentials and credentials.expired and credentials.refresh_token:
-            print('refresh')
-            credentials.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                client_secret_file,
-                scopes=[
-                    'https://www.googleapis.com/auth/youtube',
-                ]
-            )
-
-            flow.run_local_server(port=8080, prompt='consent', authorization_prompt_message='')
-            credentials = flow.credentials
-
-            # Save the credentials for the next run
-            with open('token.pickle', 'wb') as f:
-                print('save')
-                pickle.dump(credentials, f)
 
 while True:
-    main_exec()
+    get_views()
